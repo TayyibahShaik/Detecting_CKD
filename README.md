@@ -1,4 +1,4 @@
-# Detecting_CKD# Chronic Kidney Disease (CKD) Prediction System
+## Chronic Kidney Disease (CKD) Prediction System
 ## 📌 Project Overview
 This project focuses on predicting Chronic Kidney Disease (CKD) using data analytics and basic machine learning techniques. The goal is to analyze patient data and identify whether a person has CKD or not.
 
