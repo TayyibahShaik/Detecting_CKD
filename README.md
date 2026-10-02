@@ -5,8 +5,6 @@ https://tayyibahshaik-detecting-ckd-ckdapp-dakgja.streamlit.app
 
 A machine learning project that predicts whether a patient has Chronic Kidney Disease (CKD) using medical test data, with an interactive web application accessible from any browser.
 
-> ⚕️ **Disclaimer:** This project is for educational purposes only. It is **not a medical diagnosis tool**. Always consult a qualified healthcare professional.
-
 ---
 
 ## 📌 Project Overview
@@ -164,6 +162,9 @@ Any updates pushed to the repository automatically redeploy the app.
 * Model explainability (feature importance per prediction)
 * Integration with real-time medical data
 * Multilingual support
+
+> ⚕️ **Disclaimer:** This project is for educational purposes only. It is **not a medical diagnosis tool**. Always consult a qualified healthcare professional.
+
 
 ---
 
