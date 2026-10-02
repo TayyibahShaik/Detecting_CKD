@@ -3,6 +3,10 @@ One file: trains your models from datset.csv and serves the UI.
 Run:  streamlit run app.py   (put datset.csv next to this file, or upload it in the page)
 """
 import os
+import json
+import urllib.request
+from urllib.parse import quote
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -20,6 +24,7 @@ from sklearn.tree import DecisionTreeClassifier
 st.set_page_config(page_title="CKD Detect", page_icon="🩺", layout="wide")
 
 CSV_NAME = "datset.csv"
+GITHUB_REPO = "TayyibahShaik/Detecting_CKD"   # dataset is also fetched from here if not found locally
 # Same features as your notebook, minus 'id' (it leaks the label because the file is sorted by class)
 FEATURES = ["age", "bp", "sg", "al", "su", "rbc", "pc", "pcc", "ba", "bgr", "htn",
             "bu", "dm", "sc", "cad", "sod", "appet", "pot", "pe", "hemo", "ane"]
@@ -154,6 +159,63 @@ CSS = """
 </style>
 """
 
+def find_csv():
+    """Find the dataset automatically: by name first, then any CSV in the repo that has the CKD columns."""
+    here = Path(__file__).resolve().parent
+    bases = [here, Path.cwd(), here.parent]
+    for base in bases:
+        for name in (CSV_NAME, "dataset.csv", "kidney_disease.csv", "ckd.csv"):
+            if (base / name).is_file():
+                return base / name
+    seen = set()
+    for base in bases:
+        for p in sorted(base.rglob("*.csv")):
+            if p in seen or ".git" in p.parts or "site-packages" in p.parts:
+                continue
+            seen.add(p)
+            try:
+                cols = {c.strip().lower() for c in pd.read_csv(p, nrows=1).columns}
+            except Exception:
+                continue
+            if {"classification", "hemo", "sc"} <= cols:
+                return p
+    return None
+
+
+def local_csv_report():
+    """Names + first columns of every CSV the app can see (shown only if nothing is found)."""
+    here = Path(__file__).resolve().parent
+    out = []
+    for p in sorted(set(here.rglob("*.csv")) | set(Path.cwd().rglob("*.csv")))[:10]:
+        try:
+            out.append(f"{p.name}: {', '.join(list(pd.read_csv(p, nrows=1).columns)[:8])}")
+        except Exception:
+            out.append(f"{p.name}: (could not read)")
+    return out
+
+
+@st.cache_data(show_spinner="Fetching dataset from GitHub...", ttl=3600)
+def fetch_github_csv():
+    """Find a CKD-looking CSV in the GitHub repo and return its raw URL (or None)."""
+    for branch in ("main", "master"):
+        try:
+            api = f"https://api.github.com/repos/{GITHUB_REPO}/git/trees/{branch}?recursive=1"
+            with urllib.request.urlopen(api, timeout=15) as r:
+                tree = json.load(r)["tree"]
+        except Exception:
+            continue
+        for item in tree:
+            if item["path"].lower().endswith(".csv"):
+                raw = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{branch}/{quote(item['path'])}"
+                try:
+                    cols = {c.strip().lower() for c in pd.read_csv(raw, nrows=1).columns}
+                except Exception:
+                    continue
+                if {"classification", "hemo", "sc"} <= cols:
+                    return raw
+    return None
+
+
 # ===== UI =====
 st.markdown(CSS, unsafe_allow_html=True)
 st.markdown(
@@ -162,13 +224,22 @@ st.markdown(
     '<span class="pill">21 clinical features</span><span class="pill">6 ML models</span><span class="pill">Instant results</span></div>',
     unsafe_allow_html=True)
 
-src = CSV_NAME if os.path.exists(CSV_NAME) else None
-if src is None:
-    up = st.file_uploader(f"Upload your {CSV_NAME} to train the models", type="csv")
-    if up is None:
-        st.info("Upload the dataset (or place datset.csv next to app.py).")
-        st.stop()
-    src = up
+found = find_csv()
+if found is not None:
+    src, data_label = str(found), found.name
+else:
+    url = fetch_github_csv()
+    if url is not None:
+        src, data_label = url, url.rsplit("/", 1)[-1] + " (from GitHub)"
+    else:
+        st.warning("Could not find the CKD dataset in the repository. Upload the CSV once to continue.")
+        with st.expander("Why wasn't it found?"):
+            st.write("The app looks for a CSV with the columns classification, hemo and sc. CSV files it can see:")
+            st.code("\n".join(local_csv_report()) or "(none)")
+        up = st.file_uploader("Upload the CKD dataset (CSV)", type="csv")
+        if up is None:
+            st.stop()
+        src, data_label = up, "uploaded file"
 models, acc = train(src)
 
 # default values + example loaders
@@ -186,6 +257,7 @@ with st.sidebar:
     choice = st.selectbox("Prediction model", list(models), format_func=lambda n: f"{n}  ({acc[n]}%)")
     st.markdown("### 📊 Test accuracy (%)")
     st.bar_chart(pd.Series(acc, name="accuracy"), horizontal=True, height=260)
+    st.caption(f"Dataset: {data_label}")
     st.caption("Accuracy on a held-out 20% test split. The 'id' column is excluded to avoid label leakage.")
     st.info("Educational demo only. Not a medical diagnosis. Consult a clinician.")
 
