@@ -168,4 +168,5 @@ Any updates pushed to the repository automatically redeploy the app.
 
 ---
 
-## 👩‍💻 Author: **Tayyibah Shaik**
+## 👩‍💻 Author
+*Tayyibah Shaik*
